@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AE TV — Ultra PRO</title>
+  <link rel="stylesheet" href="app.css"/>
+  <script>
+    // تشغيل على نفس الأصل (سيرفر Node المدمج أو استضافة تدعم وظائف)
+    // اتركه فارغ = يستخدم نفس الدومين (/proxy و /hls)
+    window.PROXY_BASE = "";
+    // الهوست الافتراضي (مخفي عن المستخدم)
+    window.DEFAULT_HOST = "mhdd1.com:8080"; window.LOCKED_BUILD=true;
+  </script>
+</head>
+<body>
+  <div id="app">
+    <!-- شاشة ترحيب -->
+    <section id="splash" class="splash">
+      <div class="splash-glow"></div>
+      <div class="splash-inner">
+        <div class="brand">
+          <div class="brand-logo">AE</div><div class="brand-tv">TV</div>
+        </div>
+        <div class="tag">Ultra PRO • Live • Movies • Series • EPG</div>
+      </div>
+    </section>
+
+    <!-- تسجيل الدخول (تصميم جديد) -->
+    <section id="login" class="screen hidden">
+      <div class="card login">
+        <div class="logo-row">
+          <div class="brand small"><div class="brand-logo">AE</div><div class="brand-tv">TV</div></div>
+          <div class="caption">تسجيل الدخول</div>
+        </div>
+        <div class="modes">
+          <button class="mode active" data-tab="xtream">Xtream Codes</button>
+          <button class="mode" data-tab="m3u">رابط M3U</button>
+          <button class="mode" data-tab="profiles">ملفات التعريف</button>
+        </div>
+
+        <form id="formXtream" class="pane active">
+          <div class="grid2">
+            <label class="field">
+              <span>اسم المستخدم</span>
+              <input id="x_user" placeholder="username" autocomplete="username"/>
+            </label>
+            <label class="field">
+              <span>كلمة المرور</span>
+              <input id="x_pass" type="password" placeholder="password" autocomplete="current-password"/>
+            </label>
+          </div>
+          <div class="row">
+            <label class="chk"><input id="x_https" type="checkbox" checked/> HTTPS</label>
+            <label class="chk"><input id="x_forceProxy" type="checkbox" checked/> استخدم البروكسي</label>
+            <label class="chk"><input id="x_remember" type="checkbox" checked/> تذكرني</label>
+          </div>
+          <details class="opt"><summary>خيارات متقدمة</summary>
+            <label class="field">
+              <span>EPG (XMLTV / .gz)</span>
+              <input id="x_epg" placeholder="https://.../xmltv.xml أو .gz"/>
+            </label>
+            <label class="field">
+              <span>تعويض التوقيت (دقائق)</span>
+              <input id="x_epgOffset" type="number" value="0"/>
+            </label>
+          </details>
+          <button class="btn primary" type="submit">دخول</button>
+          <div id="x_error" class="error"></div>
+        </form>
+
+        <form id="formM3U" class="pane">
+          <label class="field">
+            <span>رابط M3U</span>
+            <input id="m3u_url" placeholder="https://server/get.php?username=...&password=...&type=m3u_plus&output=ts"/>
+          </label>
+          <div class="row">
+            <label class="chk"><input id="m3u_forceProxy" type="checkbox" checked/> استخدم البروكسي</label>
+          </div>
+          <details class="opt"><summary>EPG اختياري</summary>
+            <label class="field"><span>EPG</span><input id="m3u_epg" placeholder="https://.../xmltv.xml أو .gz"/></label>
+            <label class="field"><span>Offset (دقائق)</span><input id="m3u_epgOffset" type="number" value="0"/></label>
+          </details>
+          <button class="btn primary" type="submit">تحميل</button>
+          <div id="m3u_error" class="error"></div>
+        </form>
+
+        <div id="profilesPane" class="pane">
+          <div id="profilesList" class="profiles"></div>
+          <div class="row end">
+            <button id="deleteProfiles" class="btn danger ghost">حذف الكل</button>
+          </div>
+        </div>
+      </div>
+      <div class="foot muted">تم تحسين الواجهة • بروكسي مدمج • يعمل أونلاين</div>
+    </section>
+
+    <!-- الواجهة الرئيسية -->
+    <section id="shell" class="hidden">
+      <header class="topbar">
+        <div class="brand mini"><div class="brand-logo">AE</div><div class="brand-tv">TV</div></div>
+        <nav class="nav">
+          <button class="tab active" data-v="live">Live</button>
+          <button class="tab" data-v="movies">Movies</button>
+          <button class="tab" data-v="series">Series</button>
+          <button class="tab" data-v="fav">Favorites</button>
+          <button class="tab locked-hide" data-v="settings">Settings</button>
+        </nav>
+        <div class="actions">
+          <input id="search" placeholder="ابحث..."/>
+          <button id="btnLogout" class="btn ghost">⎋ خروج</button>
+        </div>
+      </header>
+
+      <div class="main">
+        <aside id="groups" class="side"></aside>
+        <main class="content">
+          <div id="cards" class="cards"></div>
+          <div id="empty" class="empty hidden">لا توجد نتائج</div>
+
+          <div id="settingsPanel" class="panel hidden">
+            <h2>الإعدادات</h2>
+            <div class="grid2">
+              <label>HTTPS <input id="s_https" type="checkbox" checked/></label>
+              <label>رابط البروكسي <input id="s_proxy" placeholder="اتركه فارغ لاستخدام /proxy و /hls"/></label>
+              <label>EPG URL <input id="s_epg"/></label>
+              <label>EPG Offset (دقائق) <input id="s_epgOffset" type="number" value="0"/></label>
+              <label>Autoplay آخر قناة <input id="s_autoplay" type="checkbox"/></label>
+              <label>كلمات محمية <input id="s_protected" placeholder="Adult,XXX,+18"/></label>
+              <label>PIN <input id="s_pin" type="password" placeholder="اختياري"/></label>
+              <label>AMOLED <input id="s_amoled" type="checkbox"/></label>
+            </div>
+            <div class="row">
+              <button id="s_save" class="btn primary">حفظ</button>
+              <button id="s_reset" class="btn ghost">إعادة الضبط</button>
+            </div>
+          </div>
+        </main>
+      </div>
+    </section>
+
+    <!-- المشغل + التحميل -->
+    <div id="playerOverlay" class="overlay hidden">
+      <div class="player">
+        <video id="player" controls playsinline></video>
+        <button id="closePlayer" class="btn fab danger">✖</button>
+        <button id="downloadBtn" class="btn fab">⬇</button>
+        <div class="now" id="nowTitle"></div>
+        <div class="epg" id="epgBox"></div>
+        <div class="resume hidden" id="resumeBar">
+          <span>متابعة من <b id="resumeTime"></b>؟</span>
+          <button id="resumeYes" class="btn small primary">نعم</button>
+          <button id="resumeNo" class="btn small ghost">لا</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- PIN -->
+    <div id="pinModal" class="modal hidden">
+      <div class="box">
+        <h3>إدخال PIN</h3>
+        <input id="pinInput" type="password" placeholder="PIN"/>
+        <div id="pinError" class="error"></div>
+        <div class="row end">
+          <button id="pinCancel" class="btn ghost">إلغاء</button>
+          <button id="pinOk" class="btn primary">موافق</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- HLS Helper -->
+    <div id="hlsModal" class="modal hidden">
+      <div class="box">
+        <h3>تحميل HLS (M3U8)</h3>
+        <input id="hlsUrl" readonly/>
+        <label>أمر ffmpeg:</label>
+        <textarea id="hlsCmd" rows="3"></textarea>
+        <div class="row end">
+          <button id="hlsCopyUrl" class="btn ghost">نسخ الرابط</button>
+          <button id="hlsCopyCmd" class="btn primary">نسخ الأمر</button>
+          <button id="hlsClose" class="btn ghost">إغلاق</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
